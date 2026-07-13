@@ -2079,8 +2079,14 @@ const CRYPTO_GROUP2 = [
   ['phantomEth', 'Metawin Phantom Wallet - Eth chain', 'Hannah Westley'],
 ];
 
-// "Total Hot Wallets" = specifically these two wallets, confirmed against actual figures
-const CRYPTO_HOT_WALLET_KEYS = ['newHotWalletMulti', 'hotWalletSolana'];
+// Confirmed wallet-to-category mapping (verified against real sheet data with the user)
+const CRYPTO_CATEGORY_HOT_METAWIN = ['newHotWalletMulti', 'hotWalletSolana'];
+const CRYPTO_CATEGORY_HOT_METAWIN_US = ['usNewHotWallet', 'usHotWalletSolana'];
+const CRYPTO_CATEGORY_CUSTODIAL_METAWIN = ['fbWithdrawal', 'fbTreasury', 'fbDeposit', 'fbGas', 'fbDeploymentVault', 'fbDepositUnswept'];
+const CRYPTO_CATEGORY_CUSTODIAL_METAWIN_US = ['usFbWithdrawal', 'usFbTreasury', 'usFbDeposit', 'usFbGas', 'usFbDepositUnswept'];
+const CRYPTO_CATEGORY_KRAKEN = ['kraken'];
+const CRYPTO_CATEGORY_RICHARD = ['metawinEth', 'metawinSolana', 'mwinnersContract', 'depositWalletDefunct', 'hotWalletMulti', 'fbTokenSale', 'solNew', 'charityWallet'];
+const CRYPTO_CATEGORY_STAFF = CRYPTO_GROUP2.map(([k]) => k); // all 14 Group 2 wallets
 
 let cryptoHistory = {}; // { 'YYYY-MM-DD': { walletKey: amount, ... } }
 
@@ -2115,11 +2121,20 @@ async function saveCryptoHistory(dateKey, rowData) {
 function cryptoDayTotals(dateKey) {
   const entry = cryptoHistory[dateKey];
   if (!entry) return null;
-  const hotTotal = CRYPTO_HOT_WALLET_KEYS.reduce((s, k) => s + (entry[k] || 0), 0);
+  const sumKeys = (keys) => keys.reduce((s, k) => s + (entry[k] || 0), 0);
   const custodialTotal = CRYPTO_GROUP1.reduce((s, [k]) => s + (entry[k] || 0), 0);
   const employeeTotal = CRYPTO_GROUP2.reduce((s, [k]) => s + (entry[k] || 0), 0);
   const grandTotal = custodialTotal + employeeTotal;
-  return { hotTotal, custodialTotal, employeeTotal, grandTotal };
+  return {
+    custodialTotal, employeeTotal, grandTotal,
+    hotMetawin: sumKeys(CRYPTO_CATEGORY_HOT_METAWIN),
+    hotMetawinUS: sumKeys(CRYPTO_CATEGORY_HOT_METAWIN_US),
+    custodialMetawin: sumKeys(CRYPTO_CATEGORY_CUSTODIAL_METAWIN),
+    custodialMetawinUS: sumKeys(CRYPTO_CATEGORY_CUSTODIAL_METAWIN_US),
+    kraken: sumKeys(CRYPTO_CATEGORY_KRAKEN),
+    richard: sumKeys(CRYPTO_CATEGORY_RICHARD),
+    staff: sumKeys(CRYPTO_CATEGORY_STAFF),
+  };
 }
 
 function findPreviousCryptoEntry(dateKey) {
@@ -2152,7 +2167,7 @@ function renderCryptoForm() {
 
 function updateCryptoSubtotals() {
   const getVal = (k) => parseFloat(document.getElementById('crypto_' + k)?.value) || 0;
-  const hotTotal = CRYPTO_HOT_WALLET_KEYS.reduce((s, k) => s + getVal(k), 0);
+  const hotTotal = [...CRYPTO_CATEGORY_HOT_METAWIN, ...CRYPTO_CATEGORY_HOT_METAWIN_US].reduce((s, k) => s + getVal(k), 0);
   const custodialTotal = CRYPTO_GROUP1.reduce((s, [k]) => s + getVal(k), 0);
   const employeeTotal = CRYPTO_GROUP2.reduce((s, [k]) => s + getVal(k), 0);
 
@@ -2172,11 +2187,18 @@ function renderCryptoCards() {
   const changeCls = change === null ? '' : (change >= 0 ? 'crypto-change-up' : 'crypto-change-down');
   const changeText = change === null ? 'n/a' : `${change >= 0 ? '+' : ''}$${change.toLocaleString(undefined,{maximumFractionDigits:0})}`;
 
+  const fmt = (v) => totals ? '$' + v.toLocaleString(undefined,{maximumFractionDigits:0}) : '-';
+
   document.getElementById('cryptoCards').innerHTML = `
     <div class="card"><div class="card-label">Grand Total${latestKey ? ' (' + latestKey + ')' : ''}</div><div class="card-value">${totals ? '$' + totals.grandTotal.toLocaleString(undefined,{maximumFractionDigits:0}) : 'No data'}</div></div>
-    <div class="card"><div class="card-label">Total Hot Wallets</div><div class="card-value">${totals ? '$' + totals.hotTotal.toLocaleString(undefined,{maximumFractionDigits:0}) : '-'}</div></div>
-    <div class="card"><div class="card-label">Total Custodial</div><div class="card-value">${totals ? '$' + totals.custodialTotal.toLocaleString(undefined,{maximumFractionDigits:0}) : '-'}</div></div>
     <div class="card"><div class="card-label">Change vs Prev Day</div><div class="card-value ${changeCls}">${changeText}</div></div>
+    <div class="card"><div class="card-label">Hot Wallet Metawin</div><div class="card-value">${totals ? fmt(totals.hotMetawin) : '-'}</div></div>
+    <div class="card"><div class="card-label">Hot Wallet Metawin.US</div><div class="card-value">${totals ? fmt(totals.hotMetawinUS) : '-'}</div></div>
+    <div class="card"><div class="card-label">Custodial Metawin</div><div class="card-value">${totals ? fmt(totals.custodialMetawin) : '-'}</div></div>
+    <div class="card"><div class="card-label">Custodial Metawin.US</div><div class="card-value">${totals ? fmt(totals.custodialMetawinUS) : '-'}</div></div>
+    <div class="card"><div class="card-label">Kraken</div><div class="card-value">${totals ? fmt(totals.kraken) : '-'}</div></div>
+    <div class="card"><div class="card-label">Controlled by Richard</div><div class="card-value">${totals ? fmt(totals.richard) : '-'}</div></div>
+    <div class="card"><div class="card-label">Controlled by Staff</div><div class="card-value">${totals ? fmt(totals.staff) : '-'}</div></div>
   `;
 }
 
@@ -2193,10 +2215,11 @@ function renderCryptoHistory() {
     const changeCls = change === null ? '' : (change >= 0 ? 'crypto-change-up' : 'crypto-change-down');
     const changeText = change === null ? '&ndash;' : `${change >= 0 ? '+' : ''}$${change.toLocaleString(undefined,{maximumFractionDigits:0})}`;
 
+    const combinedHot = totals.hotMetawin + totals.hotMetawinUS;
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>${dateKey}</td>
-      <td>$${totals.hotTotal.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
+      <td>$${combinedHot.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
       <td>$${totals.custodialTotal.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
       <td>$${totals.employeeTotal.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
       <td style="font-weight:bold; color:#3B82F6;">$${totals.grandTotal.toLocaleString(undefined,{maximumFractionDigits:0})}</td>
