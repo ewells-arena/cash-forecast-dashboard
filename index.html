@@ -905,7 +905,7 @@
 <table>
   <thead>
     <tr>
-      <th>Entity</th><th>Vendor</th><th>Invoice No</th><th>Due Date</th><th>Days</th>
+      <th>Entity</th><th>Vendor</th><th>Invoice #</th><th>Iplicit Ref</th><th>Due Date</th><th>Days</th>
       <th>Currency</th><th>Amount</th><th>Description</th><th>Action</th>
     </tr>
   </thead>
@@ -1286,7 +1286,8 @@ function renderTable() {
     tr.innerHTML = `
       <td>${r.entity || ''}</td>
       <td>${r.vendor || ''}</td>
-      <td>${r.invoiceNo || ''}</td>
+      <td>${r.theirRef || '-'}</td>
+      <td style="color:#888; font-size:10px;">${r.invoiceNo || ''}</td>
       <td>${r.dueDate || '-'}</td>
       <td>${dayTag}</td>
       <td>${r.currency || ''}</td>
@@ -1411,10 +1412,10 @@ document.getElementById('tabCrypto').addEventListener('click', () => {
 let calCurrentMonth = new Date(TODAY.getFullYear(), TODAY.getMonth(), 1);
 
 // ============ BANK BALANCES (read-only, sourced from Balances tab) ============
-const BALANCE_KEYS = ['MWS', 'WOWCOM', 'TCOM', 'PEDIA', 'AppTech', 'ZoomNet', 'Arena'];
+const BALANCE_KEYS = ['MWS', 'WOWCOM', 'TCOM', 'PEDIA', 'AppTech', 'ZoomNet', 'Arena', 'ArenaPromo', 'StableX'];
 const BALANCE_KEY_TO_SUFFIX = {
   MWS: 'MWS', WOWCOM: 'WOWCOM', TCOM: 'TCOM', PEDIA: 'PEDIA',
-  AppTech: 'AppTech', ZoomNet: 'ZoomNet', Arena: 'Arena'
+  AppTech: 'AppTech', ZoomNet: 'ZoomNet', Arena: 'Arena', ArenaPromo: 'ArenaPromo', StableX: 'StableX'
 };
 
 // Maps invoice "entity" field to which balance bucket it draws from
@@ -1427,6 +1428,7 @@ function entityToBalanceKey(entity) {
   if (e.includes('pedia')) return 'PEDIA';
   if (e.includes('app tech')) return 'AppTech';
   if (e.includes('zoom net')) return 'ZoomNet';
+  if (e.includes('stable x')) return 'StableX';
   if (e.includes('asobi') || e.includes('metawin') || e.includes('arena')) return 'Arena';
   return null; // entities without a mapped account (Allium, Jamvo, etc.) don't draw from a tracked balance
 }
@@ -1859,8 +1861,8 @@ function renderBalCards() {
   const year = balCalCurrentMonth.getFullYear();
   const month = balCalCurrentMonth.getMonth();
   const balanceOrder = [
-    ['AppTech', 'App Tech'], ['Arena', 'Arena'], ['MWS', 'MW Services'],
-    ['PEDIA', 'PEDIA'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOWCOM'], ['ZoomNet', 'Zoom Net']
+    ['AppTech', 'App Tech'], ['Arena', 'Arena'], ['ArenaPromo', 'Arena Promotions'], ['MWS', 'MW Services'],
+    ['PEDIA', 'PEDIA'], ['StableX', 'Stable X'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOWCOM'], ['ZoomNet', 'Zoom Net']
   ];
   const sums = {}, counts = {};
   balanceOrder.forEach(([k]) => { sums[k] = 0; counts[k] = 0; });
@@ -1907,8 +1909,8 @@ function renderBalCalendar() {
   });
 
   const balanceOrder = [
-    ['AppTech', 'App'], ['Arena', 'Arena'], ['MWS', 'MWS'],
-    ['PEDIA', 'PEDIA'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOW'], ['ZoomNet', 'Zoom']
+    ['AppTech', 'App'], ['Arena', 'Arena'], ['ArenaPromo', 'ArenaProm'], ['MWS', 'MWS'],
+    ['PEDIA', 'PEDIA'], ['StableX', 'StableX'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOW'], ['ZoomNet', 'Zoom']
   ];
 
   const firstOfMonth = new Date(year, month, 1);
@@ -1939,8 +1941,9 @@ function renderBalCalendar() {
         const table = document.createElement('div');
         table.className = 'cal-bal-account-table';
 
-        const colA = balanceOrder.slice(0, 4);
-        const colB = balanceOrder.slice(4);
+        const half = Math.ceil(balanceOrder.length / 2);
+        const colA = balanceOrder.slice(0, half);
+        const colB = balanceOrder.slice(half);
         const buildCol = (items) => items.map(([k, label]) => {
           const val = entry[k];
           return `<div class="cbat-row"><span class="cbat-label">${label}</span><span class="cbat-value">${val !== undefined ? val.toLocaleString(undefined,{maximumFractionDigits:0}) : '&ndash;'}</span></div>`;
@@ -1980,8 +1983,8 @@ function openBalDayModal(dateKey) {
 
   const entry = balHistory[dateKey] || {};
   const balanceOrder = [
-    ['AppTech', 'App Tech'], ['Arena', 'Arena'], ['MWS', 'MW Services'],
-    ['PEDIA', 'PEDIA'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOWCOM'], ['ZoomNet', 'Zoom Net']
+    ['AppTech', 'App Tech'], ['Arena', 'Arena'], ['ArenaPromo', 'Arena Promotions'], ['MWS', 'MW Services'],
+    ['PEDIA', 'PEDIA'], ['StableX', 'Stable X'], ['TCOM', 'TCOM'], ['WOWCOM', 'WOWCOM'], ['ZoomNet', 'Zoom Net']
   ];
 
   let html = '';
