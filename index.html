@@ -1146,15 +1146,16 @@ async function loadPaidStatus() {
     const json = await res.json();
     if (json.success) {
       const sheetPaidNumbers = Object.keys(json.data);
-      if (sheetPaidNumbers.length === 0) {
-        // First-ever load: seed the sheet with the known-settled exclusions
-        paidSet = new Set(PRE_PAID_2025);
-        for (const invoiceNo of PRE_PAID_2025) {
+      paidSet = new Set(sheetPaidNumbers);
+
+      // Merge in any exclusions not yet recorded in the sheet, and write them so they persist
+      const newExclusions = PRE_PAID_2025.filter(invoiceNo => !paidSet.has(invoiceNo));
+      if (newExclusions.length > 0) {
+        for (const invoiceNo of newExclusions) {
           const rec = RAW_DATA.find(r => r.invoiceNo === invoiceNo);
+          paidSet.add(invoiceNo);
           await markInvoicePaidRemote(invoiceNo, rec?.entity, rec?.vendor);
         }
-      } else {
-        paidSet = new Set(sheetPaidNumbers);
       }
     } else {
       console.error('Bridge error loading paid status:', json.error);
