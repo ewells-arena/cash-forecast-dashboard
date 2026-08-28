@@ -887,6 +887,7 @@
   <button class="tab-btn" id="tabForecast">Forecast by Day</button>
   <button class="tab-btn" id="tabPSP">PSP Tracking</button>
   <button class="tab-btn" id="tabInvoiceList">Invoice List</button>
+  <button class="tab-btn" id="tabLiveTest" style="color:#F87171;">Live Data (Test)</button>
 </div>
 
 <div id="viewInvoiceList" style="display:none;">
@@ -912,6 +913,23 @@
   <tbody id="tbody"></tbody>
 </table>
 </div>
+</div>
+
+<div id="viewLiveTest" style="display:none;">
+  <div style="color:#F87171; font-size:11px; font-weight:bold; margin-bottom:10px;">TEST VIEW — pulls live from Iplicit via Apps Script (Iplicit &rarr; Sheet &rarr; Bridge &rarr; Dashboard). Compare against Invoice List tab. This tab does not affect anything else.</div>
+  <div class="cards" id="liveTestCards"></div>
+  <div class="controls">
+    <button class="cal-nav-btn" id="liveTestRefreshBtn">Refresh from Bridge</button>
+    <span id="liveTestStatus" style="font-size:11px; color:#999;"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Entity</th><th>Vendor</th><th>Invoice #</th><th>Iplicit Ref</th><th>Due Date</th><th>Currency</th><th>Amount</th><th>Description</th></tr>
+      </thead>
+      <tbody id="liveTestBody"></tbody>
+    </table>
+  </div>
 </div>
 
 <div id="viewForecast" style="display:none;">
@@ -1380,8 +1398,8 @@ document.getElementById('resetLink').addEventListener('click', async () => {
 });
 
 // ============ TAB SWITCHING ============
-const ALL_TABS = ['tabBalances', 'tabCrypto', 'tabForecast', 'tabPSP', 'tabInvoiceList'];
-const ALL_VIEWS = ['viewBalances', 'viewCrypto', 'viewForecast', 'viewPSP', 'viewInvoiceList'];
+const ALL_TABS = ['tabBalances', 'tabCrypto', 'tabForecast', 'tabPSP', 'tabInvoiceList', 'tabLiveTest'];
+const ALL_VIEWS = ['viewBalances', 'viewCrypto', 'viewForecast', 'viewPSP', 'viewInvoiceList', 'viewLiveTest'];
 
 function switchToTab(tabId, viewId, renderFn) {
   ALL_TABS.forEach(t => document.getElementById(t).classList.toggle('active', t === tabId));
@@ -1403,6 +1421,10 @@ document.getElementById('tabPSP').addEventListener('click', () => {
 
 document.getElementById('tabBalances').addEventListener('click', () => {
   switchToTab('tabBalances', 'viewBalances', renderBalancesTab);
+});
+
+document.getElementById('tabLiveTest').addEventListener('click', () => {
+  switchToTab('tabLiveTest', 'viewLiveTest', renderLiveTestTab);
 });
 
 document.getElementById('tabCrypto').addEventListener('click', () => {
@@ -2733,6 +2755,88 @@ document.getElementById('forecastSearch').addEventListener('input', renderForeca
 document.getElementById('overdueEntityFilter').addEventListener('change', renderOverdueSidebar);
 document.getElementById('summaryEntityFilter').addEventListener('change', renderSummaryPanel);
 
+
+// ============ LIVE DATA TEST TAB (isolated - does not affect other tabs) ============
+let liveTestData = [];
+
+async function fetchLiveInvoices() {
+  const statusEl = document.getElementById('liveTestStatus');
+  statusEl.textContent = 'Loading from bridge...';
+  try {
+    const res = await fetch(`${BRIDGE_URL}?action=getInvoices`);
+    const json = await res.json();
+    if (json.success) {
+      liveTestData = json.data;
+      statusEl.textContent = `Loaded ${liveTestData.length} invoices. Last pulled by Iplicit script: ${liveTestData[0]?.LastPulled || 'unknown'}`;
+    } else {
+      statusEl.textContent = 'Bridge error: ' + json.error;
+      liveTestData = [];
+    }
+  } catch (e) {
+    statusEl.textContent = 'Could not reach bridge: ' + e.message;
+    liveTestData = [];
+  }
+}
+
+function renderLiveTestCards() {
+  const unpaid = liveTestData.filter(r => !paidSet.has(r.InvoiceNo));
+  const totalsByCurrency = {};
+  unpaid.forEach(r => {
+    const cur = r.Currency || '?';
+    const amt = parseFloat(r.OutstandingAmount) || 0;
+    totalsByCurrency[cur] = (totalsByCurrency[cur] || 0) + amt;
+  });
+  const currencyCards = Object.keys(totalsByCurrency).sort().map(cur =>
+    `<div class="card"><div class="card-label">Unpaid Total — ${cur}</div><div class="card-value">${totalsByCurrency[cur].toLocaleString(undefined,{maximumFractionDigits:0})}</div></div>`
+  ).join('');
+
+  document.getElementById('liveTestCards').innerHTML = `
+    <div class="card"><div class="card-label">Raw Pulled (all)</div><div class="card-value">${liveTestData.length}</div></div>
+    <div class="card"><div class="card-label">Unpaid (after exclusions)</div><div class="card-value" style="color:#22C55E;">${unpaid.length}</div></div>
+    ${currencyCards}
+  `;
+}
+
+function renderLiveTestTable() {
+  const tbody = document.getElementById('liveTestBody');
+  tbody.innerHTML = '';
+  const unpaid = liveTestData.filter(r => !paidSet.has(r.InvoiceNo));
+  const sorted = [...unpaid].sort((a,b) => (a.DueDate||'').localeCompare(b.DueDate||''));
+
+  sorted.forEach(r => {
+    const tr = document.createElement('tr');
+    const amt = parseFloat(r.OutstandingAmount) || 0;
+    tr.innerHTML = `
+      <td>${r.Entity || ''}</td>
+      <td>${r.Vendor || ''}</td>
+      <td>${r.TheirRef || '-'}</td>
+      <td style="color:#888; font-size:10px;">${r.InvoiceNo || ''}</td>
+      <td>${r.DueDate || '-'}</td>
+      <td>${r.Currency || ''}</td>
+      <td>${amt.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+      <td style="max-width:280px; font-size:11px; color:#AAAAAA;">${r.Description || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (sorted.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#999; padding:20px;">No unpaid invoices to show (or none loaded yet - click Refresh).</td></tr>';
+  }
+}
+
+async function renderLiveTestTab() {
+  if (liveTestData.length === 0) {
+    await fetchLiveInvoices();
+  }
+  renderLiveTestCards();
+  renderLiveTestTable();
+}
+
+document.getElementById('liveTestRefreshBtn').addEventListener('click', async () => {
+  await fetchLiveInvoices();
+  renderLiveTestCards();
+  renderLiveTestTable();
+});
 
 (async function init() {
   await loadPaidStatus();
