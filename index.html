@@ -879,7 +879,7 @@
 <body>
 
 <h1>Cash Forecast Dashboard</h1>
-<div class="subtitle">Live outstanding invoices, pulled from Iplicit. Last updated: 25 Aug 2026. 999 manually-verified settled invoices (per known_settled_exclusions.csv) pre-marked as paid on first load. Mark others as paid to remove from the list.</div>
+<div class="subtitle" id="mainSubtitle">Live outstanding invoices, pulled from Iplicit. Loading latest data...</div>
 
 <div class="tab-nav">
   <button class="tab-btn active" id="tabBalances">Balances</button>
@@ -2842,6 +2842,7 @@ document.getElementById('liveTestRefreshBtn').addEventListener('click', async ()
 });
 
 async function loadLiveInvoiceData() {
+  const subtitleEl = document.getElementById('mainSubtitle');
   try {
     const res = await fetch(`${BRIDGE_URL}?action=getInvoices`);
     const json = await res.json();
@@ -2857,11 +2858,21 @@ async function loadLiveInvoiceData() {
         description: r.Description,
       }));
       console.log(`Loaded ${RAW_DATA.length} live invoices from bridge.`);
+      const lastPulled = json.data[0]?.LastPulled || 'unknown';
+      if (subtitleEl) {
+        subtitleEl.textContent = `Live outstanding invoices, pulled from Iplicit. ${RAW_DATA.length} invoices loaded (Iplicit script last ran: ${lastPulled}). Mark items as paid to remove from the list.`;
+      }
     } else {
       console.warn('Live invoice fetch returned no data - keeping last-known snapshot as fallback.');
+      if (subtitleEl) {
+        subtitleEl.textContent = `⚠ Could not load live invoices (empty response) - showing last-known snapshot of ${RAW_DATA.length} invoices instead.`;
+      }
     }
   } catch (e) {
     console.warn('Could not reach bridge for live invoices - keeping last-known snapshot as fallback.', e);
+    if (subtitleEl) {
+      subtitleEl.textContent = `⚠ Could not reach live data source - showing last-known snapshot of ${RAW_DATA.length} invoices instead.`;
+    }
   }
 }
 
